@@ -7,7 +7,7 @@ date: "2024-11-19"
 ```{r}
 library(tidyverse)
 ```
-
+Hello? Do you read this?
 
 ```{r}
 data <- read.csv("autumn_juveniles.csv")
