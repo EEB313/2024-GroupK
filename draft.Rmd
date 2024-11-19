@@ -1,0 +1,45 @@
+---
+title: "Project draft"
+author: "bano"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+# packages
+```{r}
+library("tidyverse")
+```
+
+# dataset
+```{r}
+autumn_juveniles <- read.csv("autumn_juveniles.csv")
+```
+
+#Manipulating data
+## make it wider?
+```{r}
+#comparing between survival?
+survive_autumn_juveniles <- autumn_juveniles %>% 
+  filter(!is.na(survived_200d)) %>% 
+  group_by(sex, survived_200d)
+
+survive_autumn_juveniles_wide <- survive_autumn_juveniles %>% 
+  pivot_wider(names_from = sex, values_from = survived_200d)
+
+sex_survive_num <- survive_autumn_juveniles_wide %>% 
+  group_by(F, M) %>% 
+  tally()
+
+#number of females survived:
+sex_survive_num %>% 
+  select(F, M, n) %>% 
+  filter(F == 1 | M == 1) %>% 
+  print()
+  
+```
+
