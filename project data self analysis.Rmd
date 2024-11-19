@@ -1,0 +1,68 @@
+---
+title: "EEB313 project data self analysis"
+output: pdf_document
+date: "2024-11-19"
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+data <- read.csv("autumn_juveniles.csv")
+```
+
+
+```{r}
+data1 <- data %>%
+  select(sex, survived_200d, owner, growth, Std.BD, z.cones, z.temp)
+head(data1)
+```
+sex: The sex of the individual, typically 'M' for male or 'F' for female.
+survived_200d: Indicates whether the individual survived 200 days (1 for survived, 0 for not survived).
+owner: Status of territory ownership (e.g., "acquired territory" or "not yet acquired territory").
+growth: Growth rate or a measure of growth for the individual.
+Std.BD: Standardized body dimension or another standardized measurement related to the individual.
+z.cones: Z-score of cone availability, related to food resources.
+z.temp: Z-score of temperature, related to environmental conditions.
+
+Prediction 1: One sex (male or female) might have a higher likelihood of acquiring a territory.
+
+```{r}
+data1 %>%
+  group_by(sex, owner) %>%
+  tally()
+```
+
+Female: 520/777 = 66.9%
+Male: 363/628 = 57.8%
+At first glance, female seems to have a higher likelihood of acquiring a territory.
+But is it because of them being survived longer?
+
+```{r}
+data1 %>%
+  group_by(sex, owner, survived_200d) %>%
+  tally()
+```
+
+Does female or male lives longer?
+
+```{r}
+T3 <- data1 %>%
+  group_by(sex, survived_200d)
+
+table(T3$sex, T3$survived_200d)
+chisq.test(T3$sex, T3$survived_200d)
+```
+
+
+
+
+Prediction 2: Survival rates might be affected by sex due to differences in territorial acquisition, foraging, and resource allocation.
+
+```{r}
+
+```
+
+
