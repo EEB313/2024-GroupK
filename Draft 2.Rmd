@@ -1,0 +1,32 @@
+---
+title: "Draft 2"
+author: "bano"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+# Parameters
+S <- ... #susceptible population
+I <- ... #infected population
+A <- ... #adaptively immune population
+b <- ... #birthrate (per uninfected)
+d <- ... #deathrate (per uninfected)
+v <- ... #virulence that bids up natural mortality rates
+d_v <- d + v #death rate of covid 19 per person (per infected)
+beta <- ... #transmission rate (per infected individual)
+gamma <- ... #recovery rate (per infected)
+i <- ... #adaptive immunity by vaccines / infection
+alpha <- ... #rate of vaccination
+#Model
+ds <- b(S+A) - dS - alpha*S - beta*S*I
+dA <- alpha*S + gamma*I - d*A - beta*A*I*(1-i)
+dI <- beta*S*I + beta*A*I*(1-i) - gamma*I - (d+v)*I
+```
+
