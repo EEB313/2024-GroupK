@@ -1,0 +1,82 @@
+---
+title: "EEB313_Mid_Autumn_Juveniles"
+output: html_document
+date: "2024-11-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(deSolve)
+library(ggplot2)
+
+# Define the system of differential equations
+covid_model <- function(time, state, parameters) {
+  S <- state[1]
+  A <- state[2]
+  I <- state[3]
+  
+  # Extract parameters
+  b <- parameters["b"]
+  d <- parameters["d"]
+  v <- parameters["v"]
+  beta <- parameters["beta"]
+  gamma <- parameters["gamma"]
+  alpha <- parameters["alpha"]
+  i <- parameters["i"]
+    # Equations
+  dS <- b * (S + A) - d * S - beta * S * I - alpha * S
+  dA <- alpha * S + gamma * I - d * A - beta * A * I * (1 - i)
+  dI <- beta * S * I + beta * A * I * (1 - i) - gamma * I - (d + v) * I
+    
+    # Return rate of change
+  list(c(dS, dA, dI))
+}
+
+# Initial values and parameters
+initial_state <- c(S = 0.9, A = 0.05, I = 0.05)
+parameters <- c(
+  b = 0.02,    # Birth rate
+  d = 0.01,    # Death rate (natural)
+  v = 0.05,    # Virulence
+  beta = 0.5,  # Transmission rate
+  gamma = 0.2, # Recovery rate
+  alpha = 0.1, # Vaccination rate
+  i = 0.8      # Proportion of immunity by vaccines/infections
+)
+time <- seq(0, 200, by = 1) # Time sequence (200 days)
+
+# Solve the system
+output <- ode(y = initial_state, times = time, func = covid_model, parms = parameters)
+
+# Convert to a tidy data frame for analysis
+output_df <- as.data.frame(output) %>%
+  pivot_longer(cols = -time, names_to = "Compartment", values_to = "Proportion")
+
+# Summarize results by compartment
+summary_df <- output_df %>%
+  group_by(Compartment) %>%
+  summarize(
+    mean_proportion = mean(Proportion),
+    max_proportion = max(Proportion),
+    min_proportion = min(Proportion)
+  )
+
+# Show key results
+print(summary_df)
+
+# Plot results using a tidy workflow
+ggplot(output_df, aes(x = time, y = Proportion, color = Compartment)) +
+  geom_line(size = 1) +
+  labs(
+    title = "COVID-19 Dynamics",
+    x = "Time (days)",
+    y = "Proportion of Population"
+  )
+```
+
+
