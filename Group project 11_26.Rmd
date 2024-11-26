@@ -1,0 +1,113 @@
+
+# Group K Project
+From the data set, we plan to use columns sex, survived_200d, owner, growth, Std. BD, z.cones, and z.temp to identify the difference between male and female juveniles.
+
+Hypothesis:
+Male and female juvenile North American red squirrels Tamiasciurus hudsonicus differ
+in their likelihood of acquiring a territory and surviving their first winter.
+
+Predictions:
+- One sex (male or female) might have a higher likelihood of acquiring a territory.
+- Survival rates might be affected by sex due to differences in territorial acquisition, foraging, and resource allocation.
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(lmerTest)
+library(MuMIn)
+library(broom)
+library(lme4)
+```
+
+# load data
+```{r}
+juveniles <- read_csv("C:/Users/Nemo/Desktop/EEB313/Group Project/squirrels dataset/autumn_juveniles.csv")
+
+head(juveniles)
+```
+```{r}
+autumn_juveniles <- juveniles %>% mutate(acquired_terr = case_when(owner == "acquired territory" ~ 1, TRUE ~ 0) )
+head(autumn_juveniles)
+```
+
+```{r}
+# number of male and females
+n_sex <- autumn_juveniles %>%  group_by(sex) %>%
+    tally()
+n_sex
+```
+
+```{r}
+# Doing a logistic regression for all populations
+autumn_juveniles %>%
+  group_by(sex) %>%
+  ggplot(aes(x = acquired_terr, fill = sex)) + 
+  geom_bar()
+```
+
+
+```{r}
+model <- glm(acquired_terr ~ sex, 
+             family = "binomial", 
+             data = autumn_juveniles)
+summary(model)
+```
+
+sexM:
+Estimate = -0.39008
+The negative value means males have lower odds of acquiring a territory compared to females.
+
+
+### Study the effect of z.density to acquire_terr
+
+### Latest comments and suggestions are going to be released this evening by Mete and Zoe
+
+
+
+
+
+
+
+
+
+
+# Irrelevant wrong methods. Kept at the bottom
+```{r}
+#comparing between survival?
+survive_autumn_juveniles <- autumn_juveniles %>% 
+  filter(!is.na(survived_200d)) %>% 
+  group_by(sex, survived_200d)
+
+survive_autumn_juveniles
+```
+
+```{r}
+# Calculate survival likelihood for each year and sex
+survival_likelihood <- autumn_juveniles %>%
+  group_by(year, sex) %>%
+  summarise(likelihood = mean(survived_200d))
+
+# Plot the survival likelihood
+ggplot(survival_likelihood, aes(x = year, y = likelihood, color = sex)) +
+  geom_line() +
+  labs(title = "Long-term Survival Likelihood by Sex Over Years",
+       x = "Year",
+       y = "Survival Likelihood")
+```
+
+```{r}
+# Calculate the likelihood of acquiring a habitat for each year and sex
+acq_hab_ll <- autumn_juveniles %>%
+  group_by(year, sex) %>%
+  summarise(likelihood = mean(acquired_terr))
+
+# Plot the survival likelihood
+ggplot(acq_hab_ll, aes(x = year, y = likelihood, color = sex)) +
+  geom_line() +
+  labs(title = "Long-term Likelihood of acquiring a habitat by Sex Over Years",
+       x = "Year",
+       y = "Likelihood of Acquiring a habitat")
+```
+
+
+
