@@ -1,0 +1,150 @@
+---
+title: "EEB313 project data self analysis"
+output: pdf_document
+date: "2024-11-19"
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+data <- read.csv("autumn_juveniles.csv")
+```
+
+
+```{r}
+data1 <- data %>%
+  select(sex, survived_200d, owner, growth, Std.BD, z.cones, z.temp)
+head(data1)
+```
+sex: The sex of the individual, typically 'M' for male or 'F' for female.
+survived_200d: Indicates whether the individual survived 200 days (1 for survived, 0 for not survived).
+owner: Status of territory ownership (e.g., "acquired territory" or "not yet acquired territory").
+growth: Growth rate or a measure of growth for the individual.
+Std.BD: Standardized body dimension or another standardized measurement related to the individual.
+z.cones: Z-score of cone availability, related to food resources.
+z.temp: Z-score of temperature, related to environmental conditions.
+
+Prediction 1: One sex (male or female) might have a higher likelihood of acquiring a territory.
+
+```{r}
+data1 %>%
+  group_by(sex, owner) %>%
+  tally()
+```
+
+Female: 520/777 = 66.9%
+Male: 363/628 = 57.8%
+At first glance, female seems to have a higher likelihood of acquiring a territory.
+But is it because of them being survived longer?
+
+```{r}
+data1 %>%
+  group_by(sex, owner, survived_200d) %>%
+  tally()
+```
+
+Does female or male lives longer?
+
+```{r}
+T3 <- data1 %>%
+  group_by(sex, survived_200d)
+
+table(T3$sex, T3$survived_200d)
+chisq.test(T3$sex, T3$survived_200d)
+```
+
+
+
+
+Prediction 2: The likelihood of acquiring a territory might be influenced by differences in predators, resource availability, growth, population, and environmental factors.
+
+owner: Indicates whether the individual acquired a territory or not
+Predators: 1. Std.lynx: Lynx presence index. 2. Std.mustelid: Mustelid presence index (e.g., weasels).
+Resources: z.cones: Conifer cone density as a food resource.
+Growth and Population: 1. Std.growth: Standardized growth rate. 2. z.density: Population density
+Environmental Factors:  z.temp: Temperature.
+
+```{r}
+#Data Preparation
+data <- na.omit(data)
+data1 <- data %>%
+  select(owner, Std.lynx, Std.mustelid, z.cones, Std.growth, z.density, z.temp)
+head(data1)
+```
+
+```{r}
+#Exploratory Data Analysis
+#Summarize the mean of each factor grouped by territory ownership
+summary_stats <- data1 %>%
+  group_by(owner) %>%
+  summarise(
+    mean_lynx = mean(Std.lynx),
+    mean_mustelid = mean(Std.mustelid),
+    mean_cones = mean(z.cones),
+    mean_growth = mean(Std.growth),
+    mean_density = mean(z.density),
+    mean_temp = mean(z.temp)
+  )
+summary_stats
+```
+
+```{r}
+#Boxplot for Std.lynx by owner
+ggplot(data1, aes(x = factor(owner), y = Std.lynx)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Lynx Presence by Territory Ownership", x = "Territory Ownership (0 = Not Acquired, 1 = Acquired)", y = "Lynx Presence Index")
+
+#Boxplot for Std.mustelid by owner
+ggplot(data1, aes(x = factor(owner), y = Std.mustelid)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Mustelid Presence by Territory Ownership", x = "Territory Ownership (0 = Not Acquired, 1 = Acquired)", y = "Mustelid Presence Index")
+
+#Boxplot for z.cones by owner
+ggplot(data1, aes(x = factor(owner), y = z.cones)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Conifer Cone Density by Territory Ownership", x = "Territory Ownership (0 = Not Acquired, 1 = Acquired)", y = "Cone Density")
+```
+1.2. Predators seem to have no effect on territory acquisition
+3. Place with higher cone density tend to have slightly higher no territory squirrel
+
+```{r}
+# Density plot for Std.growth by owner
+ggplot(data1, aes(x = Std.growth, fill = factor(owner))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density Plot of Growth Rate by Territory Ownership", x = "Standardized Growth Rate", fill = "Territory Ownership")
+
+# Density plot for z.temp by owner
+ggplot(data1, aes(x = z.temp, fill = factor(owner))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density Plot of Temperature by Territory Ownership", x = "Temperature", fill = "Territory Ownership")
+
+```
+1. Territory Ownership seems to have no effect on growth rate seems they mostly overlap with each other
+2. individuals who did not acquire a territory (blue) have prominent peaks at two different temperature ranges, while individuals who acquired a territory (pink) have a broader distribution. This suggests that those who did not acquire a territory are more likely to be found at specific temperature ranges, indicating temperature could have a differential impact on territory acquisition outcomes.
+
+```{r}
+# Calculate means and standard errors
+mean_se_data <- data1 %>%
+  group_by(owner) %>%
+  summarise(
+    mean_growth = mean(Std.growth, na.rm = TRUE),
+    se_growth = sd(Std.growth, na.rm = TRUE) / sqrt(n())
+  )
+
+# Bar chart with error bars for Growth Rate by owner
+ggplot(mean_se_data, aes(x = factor(owner), y = mean_growth)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  geom_errorbar(aes(ymin = mean_growth - se_growth, ymax = mean_growth + se_growth), width = 0.2) +
+  labs(title = "Mean Growth Rate by Territory Ownership", x = "Territory Ownership (0 = Not Acquired, 1 = Acquired)", y = "Mean Growth Rate")
+
+```
+
+Summary Statistics: Calculate means for each predictor grouped by owner to get a general overview.
+Boxplots: Compare distributions of predictors like Std.lynx, Std.mustelid, and z.cones across territory acquisition groups.
+Density Plots: Visualize the distribution of variables like Std.growth and z.temp for each ownership group.
+Bar Charts with Error Bars: Summarize mean differences (e.g., growth rate) with variability for each group.
+
+Statistical Analysis:
