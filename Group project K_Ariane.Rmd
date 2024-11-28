@@ -1,0 +1,196 @@
+
+# Group K Project
+From the data set, we plan to use columns sex, survived_200d, owner, growth, Std. BD, z.cones, and z.temp to identify the difference between male and female juveniles.
+
+Hypothesis:
+Male and female juvenile North American red squirrels Tamiasciurus hudsonicus differ
+in their likelihood of acquiring a territory and surviving their first winter.
+
+Predictions:
+- One sex (male or female) might have a higher likelihood of acquiring a territory.
+- Survival rates might be affected by sex due to differences in territorial acquisition, foraging, and resource allocation.
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(lmerTest)
+library(MuMIn)
+library(broom)
+library(lme4)
+```
+
+# load data
+```{r}
+juveniles <- read_csv("autumn_juveniles.csv")
+
+head(juveniles)
+```
+
+
+```{r}
+autumn_juveniles <- juveniles %>% mutate(acquired_terr = case_when(owner == "acquired territory" ~ 1, TRUE ~ 0) )
+head(autumn_juveniles)
+```
+
+
+```{r}
+# number of male and females
+n_sex <- autumn_juveniles %>%  group_by(sex) %>%
+    tally()
+n_sex
+```
+
+```{r}
+# Doing a logistic regression for all populations
+autumn_juveniles %>%
+  group_by(sex) %>%
+  ggplot(aes(x = acquired_terr, fill = sex)) + 
+  geom_bar()
+```
+
+
+```{r}
+model <- glm(acquired_terr ~ sex, 
+             family = "binomial", 
+             data = autumn_juveniles)
+summary(model)
+```
+
+sexM:
+Estimate = -0.39008
+The negative value means males have lower odds of acquiring a territory compared to females.
+
+
+### Study the effect of z.density to acquire_terr
+
+### Latest comments and suggestions are going to be released this evening by Mete and Zoe
+
+
+
+```{r}
+# Calculate the likelihood of acquiring a habitat for each year and sex
+acq_hab_ll <- autumn_juveniles %>%
+  group_by(year, sex) %>%
+  summarise(likelihood = mean(acquired_terr))
+
+# Plot the survival likelihood
+ggplot(acq_hab_ll, 
+       aes(x = year, y = likelihood, color = sex)) +
+  geom_line() +
+  labs(title = "Long-term Likelihood of acquiring a habitat by Sex Over Years",
+       x = "Year",
+       y = "Likelihood of Acquiring a habitat")
+```
+
+
+```{r}
+# Logistic regression for Prediction 1
+model_sex <- glm(acquired_terr ~ sex, 
+                 family = "binomial", 
+                 data = autumn_juveniles)
+summary(model_sex)
+
+# Compute log-likelihood for sex-only model
+log_likelihood_sex <- logLik(model_sex)
+log_likelihood_sex
+
+# Visualize the likelihood of territory acquisition by sex
+autumn_juveniles %>%
+  group_by(sex) %>%
+  summarise(mean_likelihood = mean(acquired_terr)) %>%
+  ggplot(aes(x = sex, y = mean_likelihood, fill = sex)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Likelihood of Acquiring Territory by Sex",
+       x = "Sex",
+       y = "Mean Likelihood")
+```
+
+
+```{r}
+# Logistic regression for Prediction 2 with multiple predictors
+model_full <- glm(acquired_terr ~ sex + z.density + Std.lynx + 
+                    Std.mustelid + z.cones + growth + z.temp, 
+                  family = "binomial", 
+                  data = autumn_juveniles)
+summary(model_full)
+
+# Compute log-likelihood for the full model
+log_likelihood_full <- logLik(model_full)
+log_likelihood_full
+```
+### Compare log-likelihood of full model and sex model
+Log-likelihood(full_model): -877.0651
+Log-likelihood(sex_model): -920.7922
+Therefore, sex is not the biggest factor.
+
+### Sex is not the biggest factor, check which variable is the biggest factor.
+
+```{r}
+# Fit models for each variable individually
+log_likelihoods <- list()
+
+# Sex only model (already calculated)
+log_likelihoods[["sex"]] <- logLik(model_sex)
+
+# Model for z.density
+model_density <- glm(acquired_terr ~ z.density, family = "binomial", data = autumn_juveniles)
+log_likelihoods[["z.density"]] <- logLik(model_density)
+
+# Model for Std.lynx
+model_lynx <- glm(acquired_terr ~ Std.lynx, family = "binomial", data = autumn_juveniles)
+log_likelihoods[["Std.lynx"]] <- logLik(model_lynx)
+
+# Model for Std.mustelid
+model_mustelid <- glm(acquired_terr ~ Std.mustelid, family = "binomial", data = autumn_juveniles)
+log_likelihoods[["Std.mustelid"]] <- logLik(model_mustelid)
+
+# Model for z.cones
+model_cones <- glm(acquired_terr ~ z.cones, family = "binomial", data = autumn_juveniles)
+log_likelihoods[["z.cones"]] <- logLik(model_cones)
+
+# Model for growth
+model_growth <- glm(acquired_terr ~ growth, family = "binomial", data = autumn_juveniles)
+log_likelihoods[["growth"]] <- logLik(model_growth)
+
+# Model for z.temp
+model_temp <- glm(acquired_terr ~ z.temp, family = "binomial", data = autumn_juveniles)
+log_likelihoods[["z.temp"]] <- logLik(model_temp)
+
+# Combine log-likelihoods into a data frame for comparison
+log_likelihoods_df <- data.frame(
+  Variable = names(log_likelihoods),
+  LogLikelihood = sapply(log_likelihoods, as.numeric)
+)
+
+# Sort by log-likelihood to find the most important variable
+log_likelihoods_df <- log_likelihoods_df %>% arrange(desc(LogLikelihood))
+
+log_likelihoods_df
+```
+
+```{r}
+# Compute AIC values for each model manually
+aic_values <- data.frame(
+  Model = c("sex", "z.density", "Std.lynx", "Std.mustelid", "z.cones", "growth", "z.temp"),
+  AIC = c(
+    AIC(model_sex),
+    AIC(model_density),
+    AIC(model_lynx),
+    AIC(model_mustelid),
+    AIC(model_cones),
+    AIC(model_growth),
+    AIC(model_temp)
+  )
+)
+
+# Add the full model AIC
+full_model_aic <- AIC(model_full)
+aic_values <- rbind(aic_values, data.frame(Model = "Full Model", AIC = full_model_aic))
+
+# Sort by AIC in ascending order
+aic_values <- aic_values[order(aic_values$AIC), ]
+
+aic_values
+```
+
+Both log-likelihood and AIC shows predictors are more important.
