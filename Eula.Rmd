@@ -1,0 +1,291 @@
+---
+title: "Project draft"
+author: "bano"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+# packages
+```{r}
+library("tidyverse")
+library(MuMIn)
+library(glmnet)
+```
+
+# dataset
+```{r}
+autumn_juveniles <- read.csv("autumn_juveniles.csv")
+```
+
+#Manipulating data
+## make it wider?
+```{r}
+#comparing between survival?
+survive_autumn_juveniles <- autumn_juveniles %>% 
+  filter(!is.na(survived_200d)) %>% 
+  group_by(sex, survived_200d)
+
+survive_autumn_juveniles_wide <- survive_autumn_juveniles %>% 
+  pivot_wider(names_from = sex, values_from = survived_200d)
+
+sex_survive_num <- survive_autumn_juveniles_wide %>% 
+  group_by(F, M) %>% 
+  tally()
+
+#number of females survived:
+sex_survive_num %>%
+  select(F, M, n) %>%
+  filter(F == 1 | M == 1) %>%
+  print()
+  
+```
+
+## dyno code
+```{r}
+autumn_juveniles_new <- autumn_juveniles %>%
+  select(sex, survived_200d, owner, growth, Std.BD, z.cones, z.temp)
+head(autumn_juveniles_new)
+
+autumn_juveniles_new %>% 
+  group_by(sex, owner) %>%
+  tally()
+autumn_juveniles_new %>% 
+  group_by(sex, owner, survived_200d) %>%
+  tally()
+
+#significant or not
+ Test_1 <- autumn_juveniles_new %>%
+  group_by(sex, survived_200d)
+
+table(Test_1$sex, Test_1$survived_200d)
+chisq.test(Test_1$sex, Test_1$survived_200d)
+```
+#find the effect of sex on acquiring territory
+```{r}
+autumn_juveniles_2 <- autumn_juveniles %>%
+  mutate(owner_num = ifelse(owner == "acquired territory", 1, 0))
+
+model_sex <- glm(owner_num ~ sex, 
+             family = "binomial", 
+             data = autumn_juveniles_2)
+summary(model_sex)
+```
+Males are less likely to obtain territory than females.
+
+#try out Ariane code
+```{r}
+acq_hab_ll <- autumn_juveniles_2 %>%
+  group_by(year, sex) %>%
+  summarise(likelihood = mean(owner_num))
+
+# Plot the survival likelihood
+ggplot(acq_hab_ll, 
+       aes(x = year, y = likelihood, color = sex)) +
+  geom_line() +
+  labs(title = "Long-term Likelihood of acquiring a habitat by Sex Over Years",
+       x = "Year",
+       y = "Likelihood of Acquiring a habitat")
+```
+
+
+# find the effect of predators on acquiring territory?
+I'm lost...
+```{r}
+model_predator_1 <- glm(owner_num ~ Std.mustelid + Std.lynx + Std.hare.fall:Std.mustelid + Std.hare.fall:Std.lynx +Std.mustelid:Std.lynx,
+                        family = "binomial",
+                        data = autumn_juveniles_2)
+summary(model_predator_1)
+
+model_predator_2 <- glm(owner_num ~ Std.mustelid + Std.lynx,
+                        family = "binomial",
+                        data = autumn_juveniles_2)
+summary(model_predator_2)
+
+# model_predator_3 <- glm(owner_num ~ Std.mustelid + Std.lynx + year,
+#                         family = "binomial",
+#                         data = autumn_juveniles_2)
+# summary(model_predator_3)
+
+AICc(model_predator_1, model_predator_2)
+
+# autumn_juveniles_2 |>
+#   ggplot(aes(x = year, y = owner_num)) +
+#   geom_point() +
+#   geom_smooth(method = "glm",
+#               method.args = list(family = "binomial")
+#               )
+#don't mind this
+# ggplot(autumn_juveniles_2, aes(x = year, y = owner_num, color = sex)) +
+#   geom_line() +
+#   facet_grid(Std.mustelid ~ Std.lynx) +
+#   labs(
+#     x = "Year",
+#     y = "Predicted Probability of Territory Acquisition",
+#     color = "Sex",
+#     title = "Effect of Year, Sex, Lynx, and Mustelid on Territory Acquisition"
+#   ) +
+#   theme_minimal()
+
+
+```
+Here we can see when the density of mustelid increased, the log odds of a squirrel acquiring a territory decreases.
+Meanwhile, increase lynx abundance, the squirrels have more chance to acquire territory.
+The interaction of the mustelid and lynx with other prey like hare does not really have significant effect on the territory acquisition of squirrels.
+When both predator populations are high, the odds of squirrels acquiring territory increase more than expected from the individual effects of mustelid and lynx abundance.
+
+#find the effect of prey on acquiring territory?
+
+```{r}
+model_prey_1 <- glm(owner_num ~ Std.hare.fall,
+                    family = "binomial",
+                    data = autumn_juveniles_2)
+summary(model_prey_1)
+
+model_prey_2 <- glm(owner_num ~ Std.hare.fall:sex,
+                    family = "binomial",
+                    data = autumn_juveniles_2)
+summary(model_prey_2)
+
+AICc(model_prey_1, model_prey_2)
+
+#chatGPT used
+# Step 1: Generate prediction data for hare abundance (Std.hare.fall)
+prediction_data_hare <- expand.grid(
+  Std.hare.fall = seq(min(autumn_juveniles_2$Std.hare.fall), 
+                      max(autumn_juveniles_2$Std.hare.fall), 
+                      length.out = 100),
+  sex = unique(autumn_juveniles_2$sex)
+)
+
+# Add predicted probabilities using the model with the interaction (Std.hare.fall:sex)
+prediction_data_hare$predicted_probability <- predict(
+  model_prey_2, 
+  newdata = prediction_data_hare, 
+  type = "response"
+)
+
+# Step 2: Plot predicted probabilities as a function of hare abundance
+library(ggplot2)
+
+ggplot(prediction_data_hare, aes(x = Std.hare.fall, y = predicted_probability, color = sex)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Predicted Probability of Territory Acquisition by Hare Abundance",
+    x = "Hare Abundance (Std.hare.fall)",
+    y = "Predicted Probability",
+    color = "Sex"
+  ) +
+  theme_minimal()
+
+```
+When ignoring sex, fall hare abundance significantly increases the odds of squirrels acquiring territories.
+Females experience a stronger positive effect from increased hare abundance on territory acquisition (also more significant).
+Both model are quite close to each other when using AICc to see which one is better.
+
+# Effect of temperature on territory acquisition
+```{r}
+model_temp_1 <- glm(owner_num ~ z.temp,
+                    family = "binomial",
+                    data = autumn_juveniles_2)
+summary(model_temp_1)
+
+model_temp_2 <- glm(owner_num ~ z.temp:sex,
+                    family = "binomial",
+                    data = autumn_juveniles_2)
+summary(model_temp_2)
+
+#Idk about this code
+acquire_temp <- autumn_juveniles_2 %>%
+  group_by(year, z.temp) %>%
+  summarise(likelihood = mean(owner_num))
+
+ggplot(acquire_temp,
+       aes(x = year, y = likelihood, color = z.temp)) +
+  geom_line() +
+  labs(title = "Long-term Likelihood of acquiring a habitat by Sex Over Years based onz",
+       x = "Year",
+       y = "Likelihood of Acquiring a habitat")
+
+#Used ChatGPT for this?
+# Step 1: Compute likelihood of territory acquisition for each year and temperature
+acquire_temp_year <- autumn_juveniles_2 %>%
+  group_by(year, z.temp, sex) %>%
+  summarise(likelihood = mean(owner_num, na.rm = TRUE))
+
+# Step 2: Plot time-series of likelihood of acquiring territory
+ggplot(acquire_temp_year, aes(x = year, y = likelihood, color = sex)) +
+  geom_line() +
+  labs(
+    title = "Likelihood of Territory Acquisition Over Years by Temperature and Sex",
+    x = "Year",
+    y = "Likelihood of Acquiring Territory",
+    color = "Sex"
+  ) +
+  theme_minimal()
+
+```
+We see here somehow that as temperature increases, the log odds of territory acquisition decreases. However, it's insignificant. 
+
+#  Effect of food density on territory acquisition
+```{r}
+model_cone_1 <- glm(owner_num ~ z.cones,
+                    family = "binomial",
+                    data = autumn_juveniles_2)
+summary(model_cone_1)
+
+model_cone_2 <- glm(owner_num ~ z.cones:sex,
+                    family = "binomial",
+                    data = autumn_juveniles_2)
+summary(model_cone_2)
+
+#I used chatGPT to quickly plot this to see, so Idk if we need it.
+# Step 1: Generate prediction data
+# Create a data frame with a range of z.cones values and both sexes
+prediction_data <- expand.grid(
+  z.cones = seq(min(autumn_juveniles_2$z.cones), 
+                max(autumn_juveniles_2$z.cones), 
+                length.out = 100),
+  sex = unique(autumn_juveniles_2$sex)
+)
+
+# Add predicted probabilities
+prediction_data$predicted_probability <- predict(
+  model_cone_2, 
+  newdata = prediction_data, 
+  type = "response"
+)
+
+# Step 2: Create the plot
+library(ggplot2)
+
+ggplot(prediction_data, aes(x = z.cones, y = predicted_probability, color = sex)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Predicted Probability of Territory Acquisition by Food Density",
+    x = "Food Density (z.cones)",
+    y = "Predicted Probability",
+    color = "Sex"
+  ) +
+  theme_minimal()
+
+```
+This is interesting because the more food available, the log odds of territory acquisition decreases, and it is highly significant.
+Males' chance of aquirring territory seems to decrease more as there are more cones available.
+
+# effect of density on territory acquisition
+```{r}
+model_density_1 <- glm(owner_num ~ z.density,
+                    family = "binomial",
+                    data = autumn_juveniles_2)
+summary(model_density_1)
+
+model_density_2 <- glm(owner_num ~ z.density:sex,
+                    family = "binomial",
+                    data = autumn_juveniles_2)
+```
+
