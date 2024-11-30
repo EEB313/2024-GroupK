@@ -1,0 +1,153 @@
+---
+title: "Group K 1"
+output: pdf_document
+date: "2024-11-30"
+---
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(lmerTest)
+library(MuMIn)
+library(broom)
+library(lme4)
+```
+
+# load data
+```{r}
+juveniles <- read_csv("autumn_juveniles.csv")
+
+head(juveniles)
+```
+
+# Add a column indicate in 1 if "acquired territory" and 0 if "not yet acquired territory"
+```{r}
+juveniles_data <- juveniles %>% mutate(acquired_terr = case_when(owner == "acquired territory" ~ 1, TRUE ~ 0) )
+head(juveniles_data)
+```
+
+# Hypothesis: Male and female juvenile North American red squirrels Tamiasciurus hudsonicus differ in their likelihood of acquiring a territory and sex is the biggest factor that affects whether they can acquire a territory.
+
+# Prediction 1: One sex (male or female) might have a higher likelihood of acquiring a territory.
+
+```{r}
+# Logistic regression for Prediction 1
+model_sex <- glm(acquired_terr ~ sex, 
+                 family = "binomial", 
+                 data = juveniles_data)
+summary(model_sex)
+```
+
+## sexM: coefficient = -0.39008
+The negative value means males have lower odds of acquiring a territory compared to females.
+While its p-value is 0.000446 which is smaller than 0.05, this shows the effect is significant.
+
+```{r}
+# Compute log-likelihood for sex-only model
+log_likelihood_sex <- logLik(model_sex)
+log_likelihood_sex
+
+# Visualize the likelihood of territory acquisition by sex
+juveniles_data %>%
+  group_by(sex) %>%
+  summarise(mean_likelihood = mean(acquired_terr)) %>%
+  ggplot(aes(x = sex, y = mean_likelihood, fill = sex)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Likelihood of Acquiring Territory by Sex",
+       x = "Sex",
+       y = "Mean Likelihood")
+```
+
+### Results for Prediction 1: Female have a higher likelihood of acquiring a territory.
+
+# Prediction 2: Sex is the biggest factor that affects whether they can acquire a territory.
+
+```{r}
+# Logistic regression for Prediction 2 with multiple predictors
+model_full <- glm(acquired_terr ~ sex + z.density + Std.lynx + 
+                    Std.mustelid + z.cones + growth + z.temp, 
+                  family = "binomial", 
+                  data = juveniles_data)
+summary(model_full)
+
+# Compute log-likelihood for the full model
+log_likelihood_full <- logLik(model_full)
+log_likelihood_full
+```
+
+## Compare log-likelihood of full model and sex model
+Log-likelihood(full_model): -877.0651
+Log-likelihood(sex_model): -920.7922
+Therefore, sex is not the biggest factor.
+
+## Sex is not the biggest factor, check which variable is the biggest factor.
+```{r}
+# Fit models for each variable individually
+log_likelihoods <- list()
+
+# Sex only model (already calculated)
+log_likelihoods[["sex"]] <- logLik(model_sex)
+
+# Model for z.density
+model_density <- glm(acquired_terr ~ z.density, family = "binomial", data = juveniles_data)
+log_likelihoods[["z.density"]] <- logLik(model_density)
+
+# Model for Std.lynx
+model_lynx <- glm(acquired_terr ~ Std.lynx, family = "binomial", data = juveniles_data)
+log_likelihoods[["Std.lynx"]] <- logLik(model_lynx)
+
+# Model for Std.mustelid
+model_mustelid <- glm(acquired_terr ~ Std.mustelid, family = "binomial", data = juveniles_data)
+log_likelihoods[["Std.mustelid"]] <- logLik(model_mustelid)
+
+# Model for z.cones
+model_cones <- glm(acquired_terr ~ z.cones, family = "binomial", data = juveniles_data)
+log_likelihoods[["z.cones"]] <- logLik(model_cones)
+
+# Model for growth
+model_growth <- glm(acquired_terr ~ growth, family = "binomial", data = juveniles_data)
+log_likelihoods[["growth"]] <- logLik(model_growth)
+
+# Model for z.temp
+model_temp <- glm(acquired_terr ~ z.temp, family = "binomial", data = juveniles_data)
+log_likelihoods[["z.temp"]] <- logLik(model_temp)
+
+# Combine log-likelihoods into a data frame for comparison
+log_likelihoods_df <- data.frame(
+  Variable = names(log_likelihoods),
+  LogLikelihood = sapply(log_likelihoods, as.numeric)
+)
+
+# Sort by log-likelihood to find the most important variable
+log_likelihoods_df <- log_likelihoods_df %>% arrange(desc(LogLikelihood))
+
+log_likelihoods_df
+```
+
+```{r}
+# Compute AIC values for each model manually
+aic_values <- data.frame(
+  Model = c("sex", "z.density", "Std.lynx", "Std.mustelid", "z.cones", "growth", "z.temp"),
+  AIC = c(
+    AIC(model_sex),
+    AIC(model_density),
+    AIC(model_lynx),
+    AIC(model_mustelid),
+    AIC(model_cones),
+    AIC(model_growth),
+    AIC(model_temp)
+  )
+)
+
+# Add the full model AIC
+full_model_aic <- AIC(model_full)
+aic_values <- rbind(aic_values, data.frame(Model = "Full Model", AIC = full_model_aic))
+
+# Sort by AIC in ascending order
+aic_values <- aic_values[order(aic_values$AIC), ]
+
+aic_values
+```
+
+### Result for Prediction 2: Both log-likelihood and AIC shows that predators (Std.lynx, Std.mustelid) are the biggest factor that effect whether they can acquire a territory
+
