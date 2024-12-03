@@ -142,9 +142,23 @@ model_cones <- glm(acquired_terr ~ z.cones, family = "binomial", data = juvenile
 # Model for z.temp
 model_temp <- glm(acquired_terr ~ z.temp, family = "binomial", data = juveniles_data)
 
+```
+
+### calculate the combined effects by multiplying variables that interact between predators and preys
+```{r}
+model_combine_effects <- glm(acquired_terr ~ Std.mustelid * Std.lynx * Std.hare.fall, 
+                             family = "binomial", data = juveniles_data)
+summary(model_combine_effects)
+```
+Mustelid abundance has a significant negative effect on territory acquisition.
+Lynx, hare and their interactions are not statistically significant, suggesting these factors might not play a major role in territory acquisition in the data.
+In this model, Std.hare.fall is not significant compared to model_full. This might be due to the interaction with other variables that reduces the clarity of its effect. Meanwhile for model_full, there is only main effect of Std.hare.fall, it is significant when the complexity of interactions is not considered.
+Similar with Lynx.
+
 # Compute AIC values for each model manually
+```{r}
 aic_values <- data.frame(
-  Model = c("Full model", "sex", "Std.BD", "Std.growth", "Std.lynx", "Std.hare.fall", "Std.mustelid", "Std.Cleth", "z.density", "z.cones", "z.temp"),
+  Model = c("Full model", "sex", "Std.BD", "Std.growth", "Std.lynx", "Std.hare.fall", "Std.mustelid", "Std.Cleth", "z.density", "z.cones", "z.temp", "combine_effect"),
   AIC = c(
     AIC(model_full),
     AIC(model_sex),
@@ -156,7 +170,8 @@ aic_values <- data.frame(
     AIC(model_Cleth),
     AIC(model_density),    
     AIC(model_cones),
-    AIC(model_temp)
+    AIC(model_temp),
+    AIC(model_combine_effects)
   )
 )
 
@@ -167,13 +182,7 @@ aic_values <- aic_values[order(aic_values$AIC), ]
 aic_values
 ```
 
-## Visualize AIC, and perhaps delta AIC, using bar plots
-## calculate the combined effects by multiplying varibales that interact
-## Lasso regression (optional)
-## Logical presentation, context, methods, and results
-
-##Need revision
-### Result for Prediction 2: AIC shows that Standardized birth date (Std.BD) is the biggest factor that effect whether they can acquire a territory
+### Result for Prediction 2: AIC shows that Standardized birth date (Std.BD) is the biggest factor that affect whether they can acquire a territory. z.cones and z.density also affect territory acquision more than sex.
 
 ```{r}
 juveniles_data |>
@@ -211,18 +220,3 @@ juveniles_data |>
               method.args = list(family = "binomial")
               )
 ```
-
-
-# calculate the combined effects by multiplying variables that interact
-
-## between predators and preys
-```{r}
-model_combine_effects <- glm(acquired_terr ~ Std.mustelid * Std.lynx * Std.hare.fall, 
-                             family = "binomial", data = juveniles_data)
-summary(model_combine_effects)
-```
-Mustelid abundance has a significant negative effect on territory acquisition.
-Lynx, hare and their interactions are not statistically significant, suggesting these factors might not play a major role in territory acquisition in the data.
-In this model, Std.hare.fall is not significant compared to model_full. This might be due to the interaction with other variables that reduces the clarity of its effect. Meanwhile for model_full, there is only main effect of Std.hare.fall, it is significant when the complexity of interactions is not considered.
-Similar with Lynx.
-
