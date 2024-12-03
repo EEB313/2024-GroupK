@@ -1,0 +1,273 @@
+---
+title: "Group K 1"
+output: pdf_document
+date: "2024-11-30"
+---
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(ggplot2)
+```
+
+# load data
+```{r}
+juveniles <- read_csv("autumn_juveniles.csv")
+
+head(juveniles)
+```
+
+### Variable meanings ###
+individual: Unique ID of the squirrel.
+litter_id: ID of the litter the squirrel belongs to.
+sex: Sex of the individual ('M' for male, 'F' for female).
+year: Year of observation.
+field_bdate: Birth date of the squirrel in the field.
+grid: Location grid where the squirrel was observed.
+growth: Growth rate of the individual (grams per unit timw).
+survived_200d: Whether the individual survived for 200 days (1 for yes, 0 for no).
+owner: Description of territory ownership status.
+Std.BD: Standardized birth date.
+Std.growth: Standardized growth rate.
+Std.lynx: Standardized abundance of lynx predators.
+Std.hare.fall: Standardized abundance of hares in the fall.
+Std.mustelid: Standardized abundance of mustelid predators.
+Std.Cleth: Standardized abundance of red-backed voles (Clethrionomys).
+z.density: Standardized population density (unitless, z-score).
+z.cones: Standardized cone abundance (proxy for food availability).
+z.temp: Standardized mean temperature (unitless, z-score).
+
+# Add a column indicate in 1 if "acquired territory" and 0 if "not yet acquired territory"
+```{r}
+juveniles_data <- juveniles %>% mutate(acquired_terr = case_when(owner == "acquired territory" ~ 1, TRUE ~ 0) )
+head(juveniles_data)
+```
+
+# Hypothesis: Male and female juvenile North American red squirrels Tamiasciurus hudsonicus differ in their likelihood of acquiring a territory and sex is the biggest factor that affects whether they can acquire a territory.
+
+# Prediction 1: One sex (male or female) might have a higher likelihood of acquiring a territory.
+
+```{r}
+# Logistic regression for Prediction 1
+model_sex <- glm(acquired_terr ~ sex, 
+                 family = "binomial", 
+                 data = juveniles_data)
+summary(model_sex)
+```
+
+## sexM: coefficient = -0.39008
+The negative value means males have lower odds of acquiring a territory compared to females.
+While its p-value is 0.000446 which is smaller than 0.05, this shows the effect is significant.
+
+```{r}
+# Visualize the likelihood of territory acquisition by sex
+
+juveniles_data %>%
+  ggplot() +
+  geom_histogram(aes(x = acquired_terr, y =..count..))
+
+juveniles_data %>%
+  group_by(sex) %>%
+  ggplot(aes(x = acquired_terr, fill = sex)) + 
+  geom_bar() +
+    labs(title = "Acquisition of Territory by Sex",
+       x = "Sex",
+       y = "Number of squirrels")
+
+juveniles_data %>%
+  group_by(sex) %>%
+  summarise(mean_likelihood = mean(acquired_terr)) %>%
+  ggplot(aes(x = sex, y = mean_likelihood, fill = sex)) +
+  geom_bar(stat = "identity") +
+    labs(title = "Likelihood of Acquiring Territory by Sex",
+       x = "Sex",
+       y = "Mean Likelihood")
+```
+
+### Results for Prediction 1: Female have a higher likelihood of acquiring a territory.
+
+# Prediction 2: Sex is the biggest factor that affects whether they can acquire a territory.
+
+
+```{r}
+# Logistic regression for Prediction 2 with multiple predictors
+model_full <- glm(acquired_terr ~ sex + Std.BD + Std.growth + Std.lynx + 
+                    Std.hare.fall + Std.mustelid + Std.Cleth + z.density + 
+                    z.cones + z.temp, 
+                  family = "binomial", 
+                  data = juveniles_data)
+summary(model_full)
+
+```
+
+## Interpretation of the full model prediction
+Birth date (Std.BD), sex, hare abundance (Std.hare.fall), and cone abundance (z.cones) are the strongest predictors of acquiring a territory.
+Late birth date and male sex reduce the likelihood, while high hare abundance and food availability (cones) increase the likelihood.
+
+## Sex is not the biggest factor, check which variable is the biggest factor.
+
+```{r}
+# Model for Std.BD
+model_StdBD <- glm(acquired_terr ~ Std.BD, family = "binomial", data = juveniles_data)
+
+# Model for Std.growth
+model_Stdgrowth <- glm(acquired_terr ~ Std.growth, family = "binomial", data = juveniles_data)
+
+# Model for Std.lynx
+model_lynx <- glm(acquired_terr ~ Std.lynx, family = "binomial", data = juveniles_data)
+
+# Model for Std.hare.fall
+model_harefall <- glm(acquired_terr ~ Std.hare.fall, family = "binomial", data = juveniles_data)
+
+# Model for Std.mustelid
+model_mustelid <- glm(acquired_terr ~ Std.mustelid, family = "binomial", data = juveniles_data)
+
+# Model for Std.Cleth
+model_Cleth <- glm(acquired_terr ~ Std.Cleth, family = "binomial", data = juveniles_data)
+
+# Model for z.density
+model_density <- glm(acquired_terr ~ z.density, family = "binomial", data = juveniles_data)
+
+# Model for z.cones
+model_cones <- glm(acquired_terr ~ z.cones, family = "binomial", data = juveniles_data)
+
+# Model for z.temp
+model_temp <- glm(acquired_terr ~ z.temp, family = "binomial", data = juveniles_data)
+
+# Compute AIC values for each model manually
+aic_values <- data.frame(
+  Model = c("Full model", "sex", "Std.BD", "Std.growth", "Std.lynx", "Std.hare.fall", "Std.mustelid", "Std.Cleth", "z.density", "z.cones", "z.temp"),
+  AIC = c(
+    AIC(model_full),
+    AIC(model_sex),
+    AIC(model_StdBD),
+    AIC(model_Stdgrowth),
+    AIC(model_lynx),
+    AIC(model_harefall),
+    AIC(model_mustelid),
+    AIC(model_Cleth),
+    AIC(model_density),    
+    AIC(model_cones),
+    AIC(model_temp)
+  )
+)
+
+
+# Sort by AIC in ascending order
+aic_values <- aic_values[order(aic_values$AIC), ]
+
+aic_values
+```
+
+## Visualize AIC, and perhaps delta AIC, using bar plots
+## calculate the combined effects by multiplying varibales that interact
+## Lasso regression (optional)
+## Logical presentation, context, methods, and results
+
+##Need revision
+### Result for Prediction 2: AIC shows that Standardized birth date (Std.BD) is the biggest factor that effect whether they can acquire a territory
+
+```{r}
+juveniles_data |>
+  ggplot(aes(x = Std.BD, y = acquired_terr)) + 
+  geom_point() +
+  geom_smooth(method = "glm", 
+              method.args = list(family = "binomial")
+              )
+```
+
+
+```{r}
+juveniles_data |>
+  ggplot(aes(x = Std.lynx, y = acquired_terr)) + 
+  geom_point() +
+  geom_smooth(method = "glm", 
+              method.args = list(family = "binomial")
+              )
+```
+
+```{r}
+juveniles_data |>
+  ggplot(aes(x = Std.mustelid, y = acquired_terr)) + 
+  geom_point() +
+  geom_smooth(method = "glm", 
+              method.args = list(family = "binomial")
+              )
+```
+
+```{r}
+juveniles_data |>
+  ggplot(aes(x = Std.hare.fall, y = acquired_terr)) + 
+  geom_point() +
+  geom_smooth(method = "glm", 
+              method.args = list(family = "binomial")
+              )
+```
+
+
+# calculate the combined effects by multiplying variables that interact
+
+## between predators and preys
+```{r}
+model_combine_effects <- glm(acquired_terr ~ Std.mustelid * Std.lynx * Std.hare.fall, 
+                             family = "binomial", data = juveniles_data)
+summary(model_combine_effects)
+```
+Mustelid abundance has a significant negative effect on territory acquisition.
+Lynx, hare and their interactions are not statistically significant, suggesting these factors might not play a major role in territory acquisition in the data.
+In this model, Std.hare.fall is not significant compared to model_full. This might be due to the interaction with other variables that reduces the clarity of its effect. Meanwhile for model_full, there is only main effect of Std.hare.fall, it is significant when the complexity of interactions is not considered.
+Similar with Lynx.
+
+```{r}
+# Create a new data frame summarizing the count of acquired_terr == 1 by year
+yearly_count <- juveniles_data %>%
+  group_by(year) %>%
+  summarise(count_acquired_terr = sum(acquired_terr == 1))
+
+# Plot for Acquired Territory and Std.lynx over Time
+ggplot(juveniles_data, aes(x = year)) +
+  geom_line(data = yearly_count, aes(y = count_acquired_terr, color = "acquired_terr"), size = 1) +
+  geom_line(aes(y = Std.lynx * 10, color = "Std.lynx"), size = 1) + # Scaling Std.lynx
+  labs(title = "Acquired Territory and Std.lynx over Time",
+       x = "Year",
+       y = "Count of Acquired Territory") +
+  scale_color_manual(values = c("acquired_terr" = "blue", "Std.lynx" = "red")) +
+  scale_y_continuous(name = "Count of Acquired Territory",
+                     sec.axis = sec_axis(~./10, name = "Std.lynx")) + # Secondary axis for Std.lynx
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  theme(legend.position = "bottom")
+
+# Plot for Acquired Territory and Std.hare.fall over Time
+ggplot(juveniles_data, aes(x = year)) +
+  geom_line(data = yearly_count, aes(y = count_acquired_terr, color = "acquired_terr"), size = 1) +
+  geom_line(aes(y = Std.hare.fall * 10, color = "Std.hare.fall"), size = 1) + # Scaling Std.hare.fall
+  labs(title = "Acquired Territory and Std.hare.fall over Time",
+       x = "Year",
+       y = "Count of Acquired Territory") +
+  scale_color_manual(values = c("acquired_terr" = "blue", "Std.hare.fall" = "red")) +
+  scale_y_continuous(name = "Count of Acquired Territory",
+                     sec.axis = sec_axis(~./10, name = "Std.hare.fall")) + # Secondary axis for Std.hare.fall
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  theme(legend.position = "bottom")
+
+# Plot for Acquired Territory and Std.mustelid over Time
+ggplot(juveniles_data, aes(x = year)) +
+  geom_line(data = yearly_count, aes(y = count_acquired_terr, color = "acquired_terr"), size = 1) +
+  geom_line(aes(y = Std.mustelid * 10, color = "Std.mustelid"), size = 1) + # Scaling Std.mustelid
+  labs(title = "Acquired Territory and Std.mustelid over Time",
+       x = "Year",
+       y = "Count of Acquired Territory") +
+  scale_color_manual(values = c("acquired_terr" = "blue", "Std.mustelid" = "red")) +
+  scale_y_continuous(name = "Count of Acquired Territory",
+                     sec.axis = sec_axis(~./10, name = "Std.mustelid")) + # Secondary axis for Std.mustelid
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  theme(legend.position = "bottom")
+
+```
+You can ignore this part, I just used chatGPT to *quickly* graph them to see if there is any trend between the number of predators and prey compared to the territory acquisition. 
+I just think there are some interesting things to see, like when there is high level of lynx, the territory acquisition was high then drop pretty quickly?
+or high peak of hare result in the higher peak of territory acquisition.
+However, the number of observations are not the same every year... so prob not a good idea.
