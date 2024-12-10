@@ -1,0 +1,285 @@
+---
+title: "Group K 1"
+output: pdf_document
+date: "2024-11-30"
+---
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(ggplot2)
+```
+
+# load data
+```{r}
+juveniles <- read_csv("autumn_juveniles.csv")
+
+juveniles
+```
+
+### Variable meanings ###
+individual: Unique ID of the squirrel.
+litter_id: ID of the litter the squirrel belongs to.
+sex: Sex of the individual ('M' for male, 'F' for female).
+year: Year of observation.
+field_bdate: Birth date of the squirrel in the field.
+grid: Location grid where the squirrel was observed.
+growth: Growth rate of the individual (grams per unit timw).
+survived_200d: Whether the individual survived for 200 days (1 for yes, 0 for no).
+owner: Description of territory ownership status.
+Std.BD: Standardized birth date.
+Std.growth: Standardized growth rate.
+Std.lynx: Standardized abundance of lynx predators.
+Std.hare.fall: Standardized abundance of hares in the fall.
+Std.mustelid: Standardized abundance of mustelid predators.
+Std.Cleth: Standardized abundance of red-backed voles (Clethrionomys).
+z.density: Standardized population density (unitless, z-score).
+z.cones: Standardized cone abundance (proxy for food availability).
+z.temp: Standardized mean temperature (unitless, z-score).
+
+# Data manipulation
+
+## Handle missing or invalid data
+```{r}
+juveniles <- juveniles %>%
+  drop_na(sex, Std.growth, Std.BD, z.cones, z.density, z.temp, Std.lynx, Std.mustelid,
+          Std.hare.fall, Std.Cleth)
+juveniles
+```
+
+
+## Add a column indicate in 1 if "acquired territory" and 0 if "not yet acquired territory"
+## Add a column indicate in 1 if "M" and 0 if "F" for Lasso regression
+```{r}
+juveniles_data <- juveniles %>% mutate(acquired_terr = case_when(owner == "acquired territory" ~ 1, 
+                                                                 TRUE ~ 0) ) %>% 
+  mutate(sex01 = case_when(sex == "M" ~ 1, 
+                           TRUE ~0))
+head(juveniles_data)
+```
+
+
+# Hypothesis: Male and female juvenile North American red squirrels Tamiasciurus hudsonicus differ in their likelihood of acquiring a territory and sex is the biggest factor that affects whether they can acquire a territory.
+
+# Prediction 1: One sex (male or female) might have a higher likelihood of acquiring a territory.
+
+```{r}
+# Logistic regression for Prediction 1
+model_sex <- glm(acquired_terr ~ sex, 
+                 family = "binomial", 
+                 data = juveniles_data)
+summary(model_sex)
+```
+
+## sexM: coefficient = -0.39008
+The negative value means males have lower odds of acquiring a territory compared to females.
+While its p-value is 0.000446 which is smaller than 0.05, this shows the effect is significant.
+
+```{r}
+# Visualize the likelihood of territory acquisition by sex
+
+juveniles_data %>%
+  ggplot() +
+  geom_histogram(aes(x = acquired_terr, y =..count..))
+
+juveniles_data %>%
+  group_by(sex) %>%
+  ggplot(aes(x = acquired_terr, fill = sex)) + 
+  geom_bar() +
+    labs(title = "Acquisition of Territory by Sex",
+       x = "Acquisition of Territory",
+       y = "Number of squirrels")
+
+juveniles_data %>%
+  group_by(sex) %>%
+  summarise(mean_likelihood = mean(acquired_terr)) %>%
+  ggplot(aes(x = sex, y = mean_likelihood, fill = sex)) +
+  geom_bar(stat = "identity") +
+    labs(title = "Likelihood of Acquiring Territory by Sex",
+       x = "Sex",
+       y = "Mean Likelihood")
+```
+
+### Results for Prediction 1: Female have a higher likelihood of acquiring a territory.
+
+# Prediction 2: Sex is the biggest factor that affects whether they can acquire a territory.
+
+Lasso Regression with the help of ChatGPT
+```{r}
+# Install required packages
+if (!requireNamespace("glmnet", quietly = TRUE)) install.packages("glmnet")
+
+# Load the required libraries
+library(glmnet)
+library(dplyr)
+
+# Step 1: Prepare Data
+# Response variable
+response_var <- as.numeric(juveniles_data$acquired_terr)  #
+
+# Predictor matrix (select relevant predictors)
+predictors <- juveniles_data %>% 
+  select(sex01, Std.BD, Std.growth, Std.lynx, Std.hare.fall, 
+         Std.mustelid, Std.Cleth, z.density, z.cones) %>% 
+  as.matrix()  # Convert to matrix
+
+# Step 2: Fit Lasso Model
+set.seed(313)  # For reproducibility
+lasso_model <- cv.glmnet(
+  x = predictors,           # Predictor matrix
+  y = response_var,         # Response variable
+  family = "binomial",      # Logistic regression
+  alpha = 1,                # Alpha = 1 for Lasso regression
+  nfolds = 10               # 10-fold cross-validation
+)
+
+# Step 3: Optimal Lambda
+optimal_lambda <- lasso_model$lambda.min
+lambda_1se <- lasso_model$lambda.1se
+
+cat("Optimal lambda (minimum error):", optimal_lambda, "\n")
+cat("Lambda using 1-SE rule:", lambda_1se, "\n")
+
+# Step 4: Coefficients at Optimal Lambda
+coef_optimal <- coef(lasso_model, s = "lambda.min")
+print(coef_optimal)
+
+# Step 5: Predictions
+# Generate predicted probabilities
+predicted_probs <- predict(lasso_model, s = "lambda.min", newx = predictors, type = "response")
+
+# Generate binary predictions
+predicted_classes <- ifelse(predicted_probs > 0.5, 1, 0)
+
+
+# The coefficients show the effect of how each predictor affects outcome
+```
+
+```{r}
+# Extract coefficients for the optimal lambda (lambda.min) from your Lasso model
+coef_optimal <- coef(lasso_model, s = "lambda.min")
+
+# Convert coefficients to a data frame
+coef_df <- as.data.frame(as.matrix(coef_optimal))
+coef_df$Predictor <- rownames(coef_optimal)
+rownames(coef_df) <- NULL
+colnames(coef_df) <- c("Coefficient", "Predictor")
+
+# Filter out predictors with zero coefficients (excluded by Lasso)
+coef_df <- coef_df %>% filter(Coefficient != 0)
+
+# Remove the intercept for cleaner visualization
+coef_df <- coef_df %>% filter(Predictor != "(Intercept)")
+
+# Create a bar plot
+library(ggplot2)
+ggplot(coef_df, aes(x = reorder(Predictor, Coefficient), y = Coefficient)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip for horizontal bars
+  labs(title = "Lasso Regression Coefficients",
+       x = "Predictors",
+       y = "Coefficient") +
+  theme_minimal()
+
+```
+## Interpretation of the Lasso Regression
+Birth date (Std.BD), sex, hare abundance (Std.hare.fall), and cone abundance (z.cones) are the strongest predictors of acquiring a territory.
+Late birth date and male sex reduce the likelihood, while high hare abundance and food availability (cones) increase the likelihood.
+
+## Sex is not the biggest factor.
+## Check the p-valus of each predictor.
+
+```{r}
+# Model for Std.BD
+model_StdBD <- glm(acquired_terr ~ Std.BD, family = "binomial", data = juveniles_data)
+summary(model_StdBD)
+
+# Model for Std.hare.fall
+model_harefall <- glm(acquired_terr ~ Std.hare.fall, family = "binomial", data = juveniles_data)
+summary(model_harefall)
+
+# Model for sex
+model_sex <- glm(acquired_terr ~ sex, family = "binomial", data = juveniles_data)
+summary(model_sex)
+
+```
+
+
+### Result for Prediction 2:Standardized birth date (Std.BD) is the biggest factor that affect whether they can acquire a territory.
+
+```{r}
+juveniles_data |>
+  ggplot(aes(x = Std.BD, y = acquired_terr)) + 
+  geom_point() +
+  labs(title = "Territory acquisition vs Standardized Birth Date",
+       x = "Territory Acquisition",
+       y = "Std.BD") +
+  geom_smooth(method = "glm", 
+              method.args = list(family = "binomial")
+              )
+```
+
+```{r}
+juveniles_data |>
+  ggplot(aes(x = sex01, y = acquired_terr)) + 
+  geom_point() +
+  labs(title = "Territory acquisition vs Sex",
+       x = "Female = 0, Male = 1",
+       y = "Territory Acquisition") +
+  geom_smooth(method = "glm", 
+              method.args = list(family = "binomial")
+              )
+```
+
+
+
+# Trying to find the model that best predict the territory acquisition result
+```{r}
+# Logistic regression for Prediction 2 with multiple predictors
+model_full <- glm(acquired_terr ~ sex + Std.BD + Std.growth + Std.lynx + 
+                    Std.hare.fall + Std.mustelid + Std.Cleth + z.density + 
+                    z.cones + z.temp, 
+                  family = "binomial", 
+                  data = juveniles_data)
+summary(model_full)
+
+```
+
+
+
+### calculate the combined effects by multiplying variables that interact between predators and preys
+```{r}
+model_combine_effects1 <- glm(acquired_terr ~ Std.mustelid * Std.lynx * Std.hare.fall * Std.Cleth  * z.density, 
+                             family = "binomial", data = juveniles_data)
+summary(model_combine_effects1)
+```
+
+
+```{r}
+# Logistic regression for Prediction 2 with multiple predictors and combined effects
+model_full_com <- glm(acquired_terr ~ sex + Std.BD + Std.growth + z.cones + 
+                      Std.mustelid * Std.lynx * Std.hare.fall * Std.Cleth * z.density, 
+                      family = "binomial", 
+                      data = juveniles_data)
+summary(model_full_com)
+```
+
+
+# Compute AIC values for each model manually
+```{r}
+aic_values <- data.frame(
+  Model = c("Full Combined model", "Full model", "Combined_effect_model"),
+  AIC = c(
+    AIC(model_full_com),
+    AIC(model_full),
+    AIC(model_combine_effects1)
+  )
+)
+
+
+# Sort by AIC in ascending order
+aic_values <- aic_values[order(aic_values$AIC), ]
+
+aic_values
+```
+
