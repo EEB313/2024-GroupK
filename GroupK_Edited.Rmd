@@ -48,6 +48,9 @@ head(juveniles)
 
 ## Handle missing or invalid data
 ```{r data-cleaning}
+# Set seed for reproducibility
+set.seed(313)
+
 # Handle missing or invalid data
 juveniles <- juveniles %>%
   drop_na(sex, Std.growth, Std.BD, z.cones, z.density, z.temp, 
@@ -120,6 +123,9 @@ juveniles_data %>%
 ### Prediction 2: Sex is the biggest factor that affects whether they can acquire a territory.
 ### Lasso Regression with the help of ChatGPT
 ```{r lasso-regression}
+# Set seed for reproducibility
+set.seed(313)
+
 # Prepare data for Lasso regression
 # Response variable: Territory acquisition status
 response_var <- as.numeric(juveniles_data$acquired_terr)
@@ -250,6 +256,9 @@ juveniles_data %>%
 
 ### Find the model that best predict the territory acquisition result
 ```{r full-logistic-regression}
+# Set seed for reproducibility
+set.seed(313)
+
 # Fit a logistic regression model with multiple predictors
 model_full <- glm(acquired_terr ~ sex + Std.BD + Std.growth + Std.lynx + 
                     Std.hare.fall + Std.mustelid + Std.Cleth + z.density + 
@@ -263,6 +272,9 @@ summary(model_full)
 
 ### Combined Effects Model
 ```{r combined-effects}
+# Set seed for reproducibility
+set.seed(313)
+
 # Fit a model with combined effects of predator-prey interactions
 model_combined_effects <- glm(acquired_terr ~ Std.mustelid * Std.lynx * 
                                 Std.hare.fall * Std.Cleth  * z.density, 
@@ -270,10 +282,7 @@ model_combined_effects <- glm(acquired_terr ~ Std.mustelid * Std.lynx *
 
 # Summarize the model results
 summary(model_combined_effects)
-```
 
-
-```{r}
 # Fit a model incorporating multiple predictors and combined effects
 model_full_combined <- glm(acquired_terr ~ sex + Std.BD + Std.growth + 
                              z.cones + Std.mustelid * Std.lynx * 
@@ -302,4 +311,3 @@ aic_values <- data.frame(
 aic_values <- aic_values[order(aic_values$AIC), ]
 print(aic_values)
 ```
-
