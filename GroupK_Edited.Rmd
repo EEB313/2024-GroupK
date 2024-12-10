@@ -87,9 +87,9 @@ summary(model_sex)
 ```
 
 ### Results Interpretation:
-- `sexM`: Coefficient = -0.39008
+- `sexM`: Coefficient = -0.46615
 - Interpretation: Males have lower odds of acquiring a territory compared to females.
-- Significance: p-value = 0.000446 (significant at α = 0.05).
+- Significance: p-value = 0.000054 (significant at α = 0.05).
 
 ### Visualization
 ```{r visualization-sex}
